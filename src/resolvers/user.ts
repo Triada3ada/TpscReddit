@@ -57,11 +57,11 @@ export class UserResolver {
       }
     }
 
-    if (options.password.length <= 3) {
+    if (options.password.length <= 2) {
       return{
         errors:[{
           field: 'password',
-          message: 'length must be greater than 3'
+          message: 'length must be greater than 2'
         }]
       }
     }
@@ -71,7 +71,21 @@ export class UserResolver {
       username: options.username,
       password: hashedPassword,
     });
-    await em.persistAndFlush(user);
+    try {
+      await em.persistAndFlush(user);
+    } catch (error) {
+      if (error.code==="23505") {
+        //duplicate username error
+        return{
+          errors:[{
+            field: 'username',
+            message: 'this username already exists'
+          }]
+        }
+      }
+      console.log("message", error);
+      
+    }
     return {user};
   }
 
