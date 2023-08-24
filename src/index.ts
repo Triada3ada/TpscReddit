@@ -10,6 +10,13 @@ import { buildSchema } from "type-graphql";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from './resolvers/user';
+import RedisStore from "connect-redis"
+import session from "express-session"
+import {createClient} from "redis"
+import { MyContext } from './types';
+
+
+
 
 const main = async () => {
   
@@ -18,12 +25,42 @@ const main = async () => {
 
   const app = express();
 
+  // Initialize client.
+  const redisClient = createClient()
+  redisClient.connect().catch(console.error)
+
+// Initialize store.
+  const redisStore = new RedisStore({
+   client: redisClient,
+   prefix: "myapp:",   
+   disableTouch: true,
+
+  })
+
+// Initialize sesssion storage.
+  app.use(
+    session({
+      name: 'qid',
+      store: redisStore,
+      cookie: {
+        maxAge: 1000 * 60 * 60 *24 * 365 * 10, //forever 10 years
+        httpOnly: true,
+        // check for env varivale later to make it work with https later
+        //secure: __prod__
+        sameSite: 'lax' //csrf lol
+      },
+      resave: false, // required: force lightweight session keep alive (touch)
+      saveUninitialized: false, // recommended: only save session when data exists
+      secret: "asdasdasdegargfagagfdgswhgrwgrg",
+    })
+  )
+
   const apolloServer = new ApolloServer({
     schema: await buildSchema({
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false
     }),
-    context: () => ({em: orm.em})
+    context: ({req, res}) : MyContext => ({em: orm.em, req, res})
   })
   await apolloServer.start()
   apolloServer.applyMiddleware({app})
